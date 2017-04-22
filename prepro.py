@@ -224,7 +224,7 @@ def main():
     vggnet = Vgg19(vgg_model_path)
     vggnet.build()
     with tf.Session() as sess:
-        tf.initialize_all_variables().run()
+        tf.global_variables_initializer().run()
         for split in DATA_BASE_LABEL:
             anno_path = './data/%s/%s.annotations.pkl' % (split, split)
             save_path = './data/%s/%s.features.hkl' % (split, split)
