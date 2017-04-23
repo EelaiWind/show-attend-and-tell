@@ -155,7 +155,7 @@ class CaptionGenerator(object):
 
         loss = 0.0
         alpha_list = []
-        lstm_cell = tf.nn.rnn_cell.BasicLSTMCell(num_units=self.H)
+        lstm_cell = tf.contrib.rnn.BasicLSTMCell(num_units=self.H)
 
         for t in range(self.T):
             context, alpha = self._attention_layer(features, features_proj, h, reuse=(t!=0))
@@ -190,7 +190,7 @@ class CaptionGenerator(object):
         sampled_word_list = []
         alpha_list = []
         beta_list = []
-        lstm_cell = tf.nn.rnn_cell.BasicLSTMCell(num_units=self.H)
+        lstm_cell = tf.contrib.rnn.BasicLSTMCell(num_units=self.H)
 
         for t in range(max_len):
             if t == 0:

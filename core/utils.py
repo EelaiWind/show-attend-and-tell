@@ -86,3 +86,7 @@ def save_pickle(data, path):
     with open(path, 'wb') as f:
         pickle.dump(data, f, pickle.HIGHEST_PROTOCOL)
         print ('Saved %s..' %path)
+
+def load_word_to_idx(data_path):
+    with open(os.path.join(data_path, 'word_to_idx.pkl'), 'rb') as f:
+        return pickle.load(f)

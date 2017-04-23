@@ -9,6 +9,7 @@ import pandas as pd
 import hickle
 import os
 import json
+import sys
 
 DATA_BASE_LABEL = ('train_0', 'train_1', 'train_2', 'train_3', 'train_4', 'val', 'test')
 ALL_TRAIN_DATA = 'train'
@@ -142,7 +143,7 @@ def _build_image_idxs(annotations, id_to_idx):
 
 def main():
     # batch size for extracting feature vectors from vggnet.
-    batch_size = 100
+    batch_size = 32
     # maximum length of caption(number of word). if caption is longer than max_length, deleted.  
     max_length = 15
     # if word occurs less than word_count_threshold in training dataset, the word index is special unknown token.
@@ -192,6 +193,7 @@ def main():
 
     #for split in ['train', 'val', 'test']:
     for split in DATA_BASE_LABEL:
+        print "\n====== %s ======" % split
         annotations = load_pickle('./data/%s/%s.annotations.pkl' % (split, split))
         captions = _build_caption_vector(annotations=annotations, word_to_idx=word_to_idx, max_length=max_length)
         print "[DEBUG] captions = ", captions.shape
@@ -241,7 +243,7 @@ def main():
                     np.float32)
                 feats = sess.run(vggnet.features, feed_dict={vggnet.images: image_batch})
                 all_feats[start:end, :] = feats
-                print ("Processed %d %s features.." % (end, split))
+                print >> sys.stderr, ("Processed %d %s features.." % (end, split))
 
             # use hickle to save huge feature vectors
             hickle.dump(all_feats, save_path)

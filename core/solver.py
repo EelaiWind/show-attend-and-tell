@@ -11,7 +11,7 @@ from bleu import evaluate
 
 
 class CaptioningSolver(object):
-    def __init__(self, model, data, val_data, **kwargs):
+    def __init__(self, model, train_datasets, val_data, **kwargs):
         """
         Required Arguments:
             - model: Show Attend and Tell caption generating model
@@ -35,7 +35,7 @@ class CaptioningSolver(object):
         """
 
         self.model = model
-        self.data = data
+        self.train_datasets = train_datasets
         self.val_data = val_data
         self.n_epochs = kwargs.pop('n_epochs', 10)
         self.batch_size = kwargs.pop('batch_size', 100)
@@ -65,26 +65,22 @@ class CaptioningSolver(object):
 
     def train(self):
         # train/val dataset
-        n_examples = self.data['captions'].shape[0]
-        n_iters_per_epoch = int(np.ceil(float(n_examples)/self.batch_size))
-        features = self.data['features']
-        captions = self.data['captions']
-        image_idxs = self.data['image_idxs']
         val_features = self.val_data['features']
         n_iters_val = int(np.ceil(float(val_features.shape[0])/self.batch_size))
 
         # build graphs for training model and sampling captions
         loss = self.model.build_model()
-        tf.get_variable_scope().reuse_variables()
-        _, _, generated_captions = self.model.build_sampler(max_len=20)
-
+       
         # train op
         with tf.name_scope('optimizer'):
             optimizer = self.optimizer(learning_rate=self.learning_rate)
             grads = tf.gradients(loss, tf.trainable_variables())
             grads_and_vars = list(zip(grads, tf.trainable_variables()))
             train_op = optimizer.apply_gradients(grads_and_vars=grads_and_vars)
-           
+        
+        tf.get_variable_scope().reuse_variables()
+        _, _, generated_captions = self.model.build_sampler(max_len=20)
+
         # summary op   
         tf.summary.scalar('batch_loss', loss)
         for var in tf.trainable_variables():
@@ -95,11 +91,10 @@ class CaptioningSolver(object):
         summary_op = tf.summary.merge_all() 
 
         print "The number of epoch: %d" %self.n_epochs
-        print "Data size: %d" %n_examples
+        print "Data size: %d" %self.train_datasets.get_total_dataset_size()
         print "Batch size: %d" %self.batch_size
-        print "Iterations per epoch: %d" %n_iters_per_epoch
         
-        config = tf.ConfigProto(allow_soft_placement = True)
+        config = tf.ConfigProto()
         #config.gpu_options.per_process_gpu_memory_fraction=0.9
         config.gpu_options.allow_growth = True
         with tf.Session(config=config) as sess:
@@ -115,15 +110,12 @@ class CaptioningSolver(object):
             curr_loss = 0
             start_t = time.time()
 
+            total_iter = 0
             for e in range(self.n_epochs):
-                rand_idxs = np.random.permutation(n_examples)
-                captions = captions[rand_idxs]
-                image_idxs = image_idxs[rand_idxs]
-
-                for i in range(n_iters_per_epoch):
-                    captions_batch = captions[i*self.batch_size:(i+1)*self.batch_size]
-                    image_idxs_batch = image_idxs[i*self.batch_size:(i+1)*self.batch_size]
-                    features_batch = features[image_idxs_batch]
+                self.train_datasets.reset_whole_dataset()
+                i = 0
+                while not self.train_datasets.is_epoch_finish():
+                    features_batch, captions_batch = self.train_datasets.get_next_batch()
                     feed_dict = {self.model.features: features_batch, self.model.captions: captions_batch}
                     _, l = sess.run([train_op, loss], feed_dict)
                     curr_loss += l
@@ -131,21 +123,22 @@ class CaptioningSolver(object):
                     # write summary for tensorboard visualization
                     if i % 10 == 0:
                         summary = sess.run(summary_op, feed_dict)
-                        summary_writer.add_summary(summary, e*n_iters_per_epoch + i)
+                        summary_writer.add_summary(summary, total_iter)
 
                     if (i+1) % self.print_every == 0:
                         print "\nTrain loss at epoch %d & iteration %d (mini-batch): %.5f" %(e+1, i+1, l)
-                        ground_truths = captions[image_idxs == image_idxs_batch[0]]
+                        ground_truths = self.train_datasets.get_groud_truths()
                         decoded = decode_captions(ground_truths, self.model.idx_to_word)
                         for j, gt in enumerate(decoded):
                             print "Ground truth %d: %s" %(j+1, gt)                    
                         gen_caps = sess.run(generated_captions, feed_dict)
                         decoded = decode_captions(gen_caps, self.model.idx_to_word)
                         print "Generated caption: %s\n" %decoded[0]
-
+                    total_iter += 1
+                    i += 1
                 print "Previous epoch loss: ", prev_loss
                 print "Current epoch loss: ", curr_loss
-                print "Elapsed time: ", time.time() - start_t
+                print "Elapsed time since training start:", time.strftime('%H:%M:%S',time.gmtime(time.time() - start_t))
                 prev_loss = curr_loss
                 curr_loss = 0
                 
