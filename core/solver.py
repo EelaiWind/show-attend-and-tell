@@ -158,11 +158,11 @@ class CaptioningSolver(object):
 
                 # save model's parameters
                 if (e+1) % self.save_every == 0:
-                    saver.save(sess, os.path.join(self.model_path, 'model'), global_step=e+1)
-                    print "model-%s saved." %(e+1)
+                    checkpoint_path = saver.save(sess, os.path.join(self.model_path, 'model'), global_step=e+1)
+                    print "model-%s saved at %s" %(e+1, checkpoint_path)
             
          
-    def test(self, data, split='train', attention_visualization=True, save_sampled_captions=True):
+    def test(self, data, save_path, split='train', attention_visualization=True, save_sampled_captions=True):
         '''
         Args:
             - data: dictionary with the following keys:
@@ -181,9 +181,7 @@ class CaptioningSolver(object):
         # build a graph to sample captions
         alphas, betas, sampled_captions = self.model.build_sampler(max_len=20)    # (N, max_len, L), (N, max_len)
         
-        config = tf.ConfigProto(allow_soft_placement=True)
-        config.gpu_options.allow_growth = True
-        with tf.Session(config=config) as sess:
+        with tf.Session() as sess:
             saver = tf.train.Saver()
             saver.restore(sess, self.test_model)
             features_batch, image_files = sample_coco_minibatch(data, self.batch_size)
@@ -213,8 +211,10 @@ class CaptioningSolver(object):
                         alp_img = skimage.transform.pyramid_expand(alp_curr, upscale=16, sigma=20)
                         plt.imshow(alp_img, alpha=0.85)
                         plt.axis('off')
-                    plt.show()
-
+                    #plt.show()
+                    plt.savefig('image_%d.jpg' % n)
+                    plt.clf()
+            '''
             if save_sampled_captions:
                 all_sam_cap = np.ndarray((features.shape[0], 20))
                 num_iter = int(np.ceil(float(features.shape[0]) / self.batch_size))
@@ -224,3 +224,4 @@ class CaptioningSolver(object):
                     all_sam_cap[i*self.batch_size:(i+1)*self.batch_size] = sess.run(sampled_captions, feed_dict)  
                 all_decoded = decode_captions(all_sam_cap, self.model.idx_to_word)
                 save_pickle(all_decoded, "./data/%s/%s.candidate.captions.pkl" %(split,split))
+            '''
